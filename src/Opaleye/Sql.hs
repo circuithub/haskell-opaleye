@@ -43,5 +43,24 @@ showSqlForPostgresExplicit = formatAndShowSQL
 showSqlForPostgresUnoptExplicit :: U.Unpackspec columns b -> Q.Query columns -> String
 showSqlForPostgresUnoptExplicit = formatAndShowSQL .: Q.runQueryArrUnpack
 
+
+-- | TODO: Make sure mysql queries are correctly formatted for mysql
+--
+showSqlForMysql :: forall columns . D.Default U.Unpackspec columns columns =>
+                   Q.Query columns -> String
+showSqlForMysql = showSqlForMysqlExplicit (D.def :: U.Unpackspec columns columns)
+
+showSqlForMysqlUnopt :: forall columns . D.Default U.Unpackspec columns columns =>
+                        Q.Query columns -> String
+showSqlForMysqlUnopt = showSqlForMysqlUnoptExplicit (D.def :: U.Unpackspec columns columns)
+
+showSqlForMysqlExplicit :: U.Unpackspec columns b -> Q.Query columns -> String
+showSqlForMysqlExplicit = formatAndShowSQL
+                             . (\(x, y, z) -> (x, Op.optimize y, z))
+                             .: Q.runQueryArrUnpack
+
+showSqlForMysqlUnoptExplicit :: U.Unpackspec columns b -> Q.Query columns -> String
+showSqlForMysqlUnoptExplicit = formatAndShowSQL .: Q.runQueryArrUnpack
+
 formatAndShowSQL :: ([HPQ.PrimExpr], PQ.PrimQuery, T.Tag) -> String
 formatAndShowSQL = show . Pr.ppSql . Sql.sql
