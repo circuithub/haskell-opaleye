@@ -70,6 +70,7 @@ library
                    Opaleye.TypeFamilies,
                    Opaleye.Values,
                    Opaleye.Window,
+                   Opaleye.WithRecursive,
                    Opaleye.Internal.Aggregate,
                    Opaleye.Internal.Binary,
                    Opaleye.Internal.Constant,
