@@ -32,17 +32,6 @@ tiToSqlTable ti = HSql.SqlTable { HSql.sqlTableSchemaName = tiSchemaName ti
 
 type Bindings a = [(Symbol, a)]
 
-data Lateral = NonLateral | Lateral
-  deriving Show
-
-instance Semigroup Lateral where
-  NonLateral <> NonLateral = NonLateral
-  _ <> _ = Lateral
-
-instance Monoid Lateral where
-  mappend = (<>)
-  mempty = NonLateral
-
 -- We use a 'NEL.NonEmpty' for Product because otherwise we'd have to check
 -- for emptiness explicity in the SQL generation phase.
 
@@ -54,7 +43,7 @@ instance Monoid Lateral where
 data PrimQuery' a = Unit
                   | Empty     a
                   | BaseTable TableIdentifier (Bindings HPQ.PrimExpr)
-                  | Product   (NEL.NonEmpty (Lateral, PrimQuery' a)) [HPQ.PrimExpr]
+                  | Product   (NEL.NonEmpty (PrimQuery' a)) [HPQ.PrimExpr]
                   | Aggregate (Bindings (Maybe (HPQ.AggrOp,
                                                 [HPQ.OrderExpr],
                                                 HPQ.AggrDistinct),
@@ -99,7 +88,7 @@ data PrimQueryFold' a p = PrimQueryFold
   { unit              :: p
   , empty             :: a -> p
   , baseTable         :: TableIdentifier -> Bindings HPQ.PrimExpr -> p
-  , product           :: NEL.NonEmpty (Lateral, p) -> [HPQ.PrimExpr] -> p
+  , product           :: NEL.NonEmpty p -> [HPQ.PrimExpr] -> p
   , aggregate         :: Bindings (Maybe
                              (HPQ.AggrOp, [HPQ.OrderExpr], HPQ.AggrDistinct),
                                    HPQ.Symbol)
@@ -155,7 +144,7 @@ foldPrimQuery f = fix fold
           Unit                        -> unit              f
           Empty a                     -> empty             f a
           BaseTable ti syms           -> baseTable         f ti syms
-          Product qs pes              -> product           f (fmap (fmap self) qs) pes
+          Product qs pes              -> product           f (fmap self qs) pes
           Aggregate aggrs q           -> aggregate         f aggrs (self q)
           DistinctOnOrderBy dxs oxs q -> distinctOnOrderBy f dxs oxs (self q)
           Limit op q                  -> limit             f op (self q)
@@ -170,10 +159,10 @@ foldPrimQuery f = fix fold
         fix g = let x = g x in x
 
 times :: PrimQuery -> PrimQuery -> PrimQuery
-times q q' = Product (pure q NEL.:| [pure q']) []
+times q q' = Product (q NEL.:| [q']) []
 
 restrict :: HPQ.PrimExpr -> PrimQuery -> PrimQuery
-restrict cond primQ = Product (return (pure primQ)) [cond]
+restrict cond primQ = Product (return primQ) [cond]
 
 exists :: PrimQuery -> PrimQuery -> PrimQuery
 exists = Exists True

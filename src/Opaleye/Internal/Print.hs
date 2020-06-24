@@ -116,15 +116,11 @@ nameAs :: (HSql.SqlExpr, Maybe HSql.SqlColumn) -> Doc
 nameAs (expr, name) = HPrint.ppAs (fmap unColumn name) (HPrint.ppSqlExpr expr)
   where unColumn (HSql.SqlColumn s) = s
 
-ppTables :: [(Sql.Lateral, Select)] -> Doc
+ppTables :: [Select] -> Doc
 ppTables [] = empty
 ppTables ts = text "FROM" <+> HPrint.commaV ppTable_tableAlias (zip [1..] ts)
-  where ppTable_tableAlias :: (Int, (Sql.Lateral, Select)) -> Doc
-        ppTable_tableAlias (i, (lat, select)) =
-          lateral lat $ ppTable (tableAlias i select)
-        lateral = \case
-            Sql.NonLateral -> id
-            Sql.Lateral -> (text "LATERAL" $$)
+  where ppTable_tableAlias :: (Int, Select) -> Doc
+        ppTable_tableAlias (i, select) = ppTable (tableAlias i select)
 
 tableAlias :: Int -> Select -> (TableAlias, Select)
 tableAlias i select = ("T" ++ show i, select)
@@ -134,12 +130,14 @@ ppTable :: (TableAlias, Select) -> Doc
 ppTable (alias, select) = HPrint.ppAs (Just alias) $ case select of
   Table table           -> HPrint.ppTable table
   RelExpr expr          -> HPrint.ppSqlExpr expr
-  SelectFrom selectFrom -> parens (ppSelectFrom selectFrom)
-  SelectJoin slj        -> parens (ppSelectJoin slj)
-  SelectValues slv      -> parens (ppSelectValues slv)
-  SelectBinary slb      -> parens (ppSelectBinary slb)
-  SelectLabel sll       -> parens (ppSelectLabel sll)
-  SelectExists saj      -> parens (ppSelectExists saj)
+  SelectFrom selectFrom -> lateral (ppSelectFrom selectFrom)
+  SelectJoin slj        -> lateral (ppSelectJoin slj)
+  SelectValues slv      -> lateral (ppSelectValues slv)
+  SelectBinary slb      -> lateral (ppSelectBinary slb)
+  SelectLabel sll       -> lateral (ppSelectLabel sll)
+  SelectExists saj      -> lateral (ppSelectExists saj)
+  where
+    lateral = (text "LATERAL" $$) . parens
 
 ppGroupBy :: Maybe (NEL.NonEmpty HSql.SqlExpr) -> Doc
 ppGroupBy Nothing   = empty
