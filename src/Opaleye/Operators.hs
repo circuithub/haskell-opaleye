@@ -6,18 +6,18 @@
 -- | Operators on 'Column's.  Please note that numeric 'Column' types
 -- are instances of 'Num', so you can use '*', '/', '+', '-' on them.
 
-module Opaleye.Operators where
+module Opaleye.Operators (module Opaleye.Operators) where
 
 import qualified Control.Arrow as A
 import qualified Data.Foldable as F
 import qualified Data.List.NonEmpty as NEL
-
+import           Prelude hiding (not)
+import qualified Opaleye.Exists as E
 import qualified Opaleye.Field as F
 import           Opaleye.Internal.Column (Column(Column), unsafeCase_,
                                           unsafeIfThenElse, unsafeGt)
 import qualified Opaleye.Internal.Column as C
-import           Opaleye.Internal.QueryArr (SelectArr(QueryArr),
-                                            Query, QueryArr, runSimpleQueryArr)
+import           Opaleye.Internal.QueryArr (QueryArr, SelectArr(QueryArr), Query, runSimpleQueryArr)
 import qualified Opaleye.Internal.PrimQuery as PQ
 import qualified Opaleye.Internal.Operators as O
 import           Opaleye.Internal.Helpers   ((.:))
@@ -26,8 +26,6 @@ import qualified Opaleye.Select   as S
 import qualified Opaleye.SqlTypes as T
 
 import qualified Opaleye.Column   as Column
-import qualified Opaleye.Distinct as Distinct
-import qualified Opaleye.Join as Join
 
 import qualified Opaleye.Internal.HaskellDB.PrimQuery as HPQ
 
@@ -49,18 +47,19 @@ then 'keepWhen' will suit you better.
 'Control.Applicative.Alternative' it may help you to know that
 'restrict' corresponds to the 'Control.Monad.guard' function.) -}
 restrict :: S.SelectArr (F.Field T.SqlBool) ()
-restrict = O.restrict
+restrict = QueryArr f where
+  f (Column predicate, primQ, t0) = ((), PQ.restrict predicate primQ, t0)
 
 {-| Add a @WHERE EXISTS@ clause to the current query. -}
 restrictExists :: S.SelectArr a b -> S.SelectArr a ()
 restrictExists criteria = QueryArr f where
-  f (a, primQ, t0) = ((), PQ.exists primQ existsQ, t1) where
+  f (a, primQ, t0) = ((), PQ.Semijoin PQ.Semi primQ existsQ, t1) where
     (_, existsQ, t1) = runSimpleQueryArr criteria (a, t0)
 
 {-| Add a @WHERE NOT EXISTS@ clause to the current query. -}
 restrictNotExists :: S.SelectArr a b -> S.SelectArr a ()
 restrictNotExists criteria = QueryArr f where
-  f (a, primQ, t0) = ((), PQ.notExists primQ existsQ, t1) where
+  f (a, primQ, t0) = ((), PQ.Semijoin PQ.Anti primQ existsQ, t1) where
     (_, existsQ, t1) = runSimpleQueryArr criteria (a, t0)
 
 {-| Keep only the rows of a query satisfying a given condition, using
@@ -159,7 +158,7 @@ infixr 2 .||
 
 -- | Boolean or
 (.||) :: F.Field T.SqlBool -> F.Field T.SqlBool -> F.Field T.SqlBool
-(.||) = (O..||)
+(.||) = C.binOp HPQ.OpOr
 
 infixr 3 .&&
 
@@ -169,7 +168,7 @@ infixr 3 .&&
 
 -- | Boolean not
 not :: F.Field T.SqlBool -> F.Field T.SqlBool
-not = O.not
+not = C.unOp HPQ.OpNot
 
 -- | True when any element of the container is true
 ors :: F.Foldable f => f (F.Field T.SqlBool) -> F.Field T.SqlBool
@@ -215,32 +214,10 @@ in_ fcas (Column a) = Column $ case NEL.nonEmpty (F.toList fcas) of
 -- | True if the first argument occurs amongst the rows of the second,
 -- false otherwise.
 --
--- This operation is equivalent to Postgres's @IN@ operator but, for
--- expediency, is currently implemented using a @LEFT JOIN@.  Please
--- file a bug if this causes any issues in practice.
+-- This operation is equivalent to Postgres's @IN@ operator.
 inSelect :: D.Default O.EqPP fields fields
          => fields -> S.Select fields -> S.Select (F.Field T.SqlBool)
-inSelect c q = qj'
-  where -- Remove every row that isn't equal to c
-        -- Replace the ones that are with '1'
-        q' = A.arr (const 1)
-             A.<<< keepWhen (c .===)
-             A.<<< q
-
-        -- Left join with a query that has a single row
-        -- We either get a single row with '1'
-        -- or a single row with 'NULL'
-        qj :: Query (F.Field T.SqlInt4, Column (C.Nullable T.SqlInt4))
-        qj = Join.leftJoin (A.arr (const 1))
-                           (Distinct.distinct q')
-                           (uncurry (.==))
-
-        -- Check whether it is 'NULL'
-        qj' :: Query (F.Field T.SqlBool)
-        qj' = A.arr (Opaleye.Operators.not
-                     . Column.isNull
-                     . snd)
-              A.<<< qj
+inSelect c q = E.exists (keepWhen (c .===) A.<<< q)
 
 -- * JSON operators
 
@@ -248,24 +225,23 @@ inSelect c q = qj'
 -- Used to overload functions and operators that work on both 'T.SqlJson' and 'T.SqlJsonb'.
 --
 -- Warning: making additional instances of this class can lead to broken code!
-class SqlIsJson a
+class PGIsJson a
 
-{-# DEPRECATED PGIsJson "Use SqlIsJson instead" #-}
-type PGIsJson = SqlIsJson
+type SqlIsJson = PGIsJson
 
-instance SqlIsJson T.SqlJson
-instance SqlIsJson T.SqlJsonb
+instance PGIsJson T.SqlJson
+instance PGIsJson T.SqlJsonb
 
 -- | Class of Postgres types that can be used to index json values.
 --
 -- Warning: making additional instances of this class can lead to broken code!
-class SqlJsonIndex a
+class PGJsonIndex a
 
-type PGJsonIndex = SqlJsonIndex
+type SqlJsonIndex = PGJsonIndex
 
-instance SqlJsonIndex T.SqlInt4
-instance SqlJsonIndex T.SqlInt8
-instance SqlJsonIndex T.SqlText
+instance PGJsonIndex T.SqlInt4
+instance PGJsonIndex T.SqlInt8
+instance PGJsonIndex T.SqlText
 
 -- | Get JSON object field by key.
 infixl 8 .->
@@ -400,15 +376,21 @@ timestamptzAtTimeZone = C.binOp HPQ.OpAtTimeZone
 
 -- * Deprecated
 
-{-# DEPRECATED exists "Identical to 'restrictExists'.  Will be removed in version 0.8." #-}
+{-# DEPRECATED doubleOfInt
+    "Use 'C.unsafeCast' instead. \
+    \Will be removed in version 0.7." #-}
+doubleOfInt :: F.Field T.SqlInt4 -> F.Field T.SqlFloat8
+doubleOfInt (Column e) = Column (HPQ.CastExpr "float8" e)
+
+-- | Identical to 'restrictExists'.  Will be deprecated in version 0.7.
 exists :: QueryArr a b -> QueryArr a ()
 exists = restrictExists
 
-{-# DEPRECATED notExists "Identical to 'restrictNotExists'.  Will be removed in version 0.8." #-}
+-- | Identical to 'restrictNotExists'.  Will be deprecated in version 0.7.
 notExists :: QueryArr a b -> QueryArr a ()
 notExists = restrictNotExists
 
-{-# DEPRECATED inQuery "Identical to 'inSelect'.  Will be removed in version 0.8." #-}
+-- | Identical to 'inSelect'.  Will be deprecated in version 0.7.
 inQuery :: D.Default O.EqPP fields fields
         => fields -> Query fields -> S.Select (F.Field T.SqlBool)
 inQuery = inSelect

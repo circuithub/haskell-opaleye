@@ -9,11 +9,12 @@ import           Opaleye.Internal.Sql (Select(SelectFrom,
                                               Table,
                                               RelExpr,
                                               SelectJoin,
+                                              SelectSemijoin,
                                               SelectValues,
                                               SelectBinary,
                                               SelectLabel,
                                               SelectExists),
-                                       From, Join, Values, Binary, Label, Exists)
+                                       From, Join, Semijoin, Values, Binary, Label, Exists)
 
 import qualified Opaleye.Internal.PrimQuery as PQ
 import qualified Opaleye.Internal.HaskellDB.PrimQuery as HPQ
@@ -31,14 +32,15 @@ import qualified Data.Text          as ST
 type TableAlias = String
 
 ppSql :: Select -> Doc
-ppSql (SelectFrom s)   = ppSelectFrom s
-ppSql (Table table)    = HPrint.ppTable table
-ppSql (RelExpr expr)   = HPrint.ppSqlExpr expr
-ppSql (SelectJoin j)   = ppSelectJoin j
-ppSql (SelectValues v) = ppSelectValues v
-ppSql (SelectBinary v) = ppSelectBinary v
-ppSql (SelectLabel v)  = ppSelectLabel v
-ppSql (SelectExists v) = ppSelectExists v
+ppSql (SelectFrom s)     = ppSelectFrom s
+ppSql (Table table)      = HPrint.ppTable table
+ppSql (RelExpr expr)     = HPrint.ppSqlExpr expr
+ppSql (SelectJoin j)     = ppSelectJoin j
+ppSql (SelectSemijoin j) = ppSelectSemijoin j
+ppSql (SelectValues v)   = ppSelectValues v
+ppSql (SelectBinary v)   = ppSelectBinary v
+ppSql (SelectLabel v)    = ppSelectLabel v
+ppSql (SelectExists v)   = ppSelectExists v
 
 ppDistinctOn :: Maybe (NEL.NonEmpty HSql.SqlExpr) -> Doc
 ppDistinctOn = maybe mempty $ \nel ->
@@ -68,6 +70,16 @@ ppSelectJoin j = text "SELECT *"
                  $$  HPrint.ppSqlExpr (Sql.jCond j)
   where (s1, s2) = Sql.jTables j
 
+ppSelectSemijoin :: Semijoin -> Doc
+ppSelectSemijoin v =
+  text "SELECT *"
+  $$  text "FROM"
+  $$  ppTable (tableAlias 1 (Sql.sjTable v))
+  $$  case Sql.sjType v of
+        Sql.Semi -> text "WHERE EXISTS"
+        Sql.Anti -> text "WHERE NOT EXISTS"
+  $$ parens (ppSql (Sql.sjCriteria v))
+
 ppSelectValues :: Values -> Doc
 ppSelectValues v = text "SELECT"
                    <+> ppAttrs (Sql.vAttrs v)
@@ -91,14 +103,12 @@ ppSelectLabel l = text "/*" <+> text (preprocess (Sql.lLabel l)) <+> text "*/"
                    . ST.pack
 
 ppSelectExists :: Exists -> Doc
-ppSelectExists v =
-  text "SELECT *"
-  $$ text "FROM"
-  $$ ppTable (tableAlias 1 (Sql.existsTable v))
-  $$ case Sql.existsBool v of
-       True -> text "WHERE EXISTS"
-       False -> text "WHERE NOT EXISTS"
-  $$ parens (ppSql (Sql.existsCriteria v))
+ppSelectExists e =
+  text "SELECT EXISTS"
+  <+> HPrint.ppAs (Just alias) (parens (ppSql query))
+  where
+    alias = Sql.sqlSymbol (Sql.existsBinding e)
+    query = Sql.existsTable e
 
 ppJoinType :: Sql.JoinType -> Doc
 ppJoinType Sql.LeftJoin = text "LEFT OUTER JOIN"
@@ -132,6 +142,7 @@ ppTable (alias, select) = HPrint.ppAs (Just alias) $ case select of
   RelExpr expr          -> HPrint.ppSqlExpr expr
   SelectFrom selectFrom -> lateral (ppSelectFrom selectFrom)
   SelectJoin slj        -> lateral (ppSelectJoin slj)
+  SelectSemijoin slj    -> lateral (ppSelectSemijoin slj)
   SelectValues slv      -> lateral (ppSelectValues slv)
   SelectBinary slb      -> lateral (ppSelectBinary slb)
   SelectLabel sll       -> lateral (ppSelectLabel sll)
