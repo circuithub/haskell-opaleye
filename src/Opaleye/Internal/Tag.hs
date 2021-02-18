@@ -12,5 +12,6 @@ next = UnsafeTag . (+1) . unsafeUnTag
 unsafeUnTag :: Tag -> Int
 unsafeUnTag (UnsafeTag i) = i
 
-tagWith :: Tag -> String -> String
-tagWith t s = s ++ "_" ++ show (unsafeUnTag t)
+tagWith :: Maybe Tag -> String -> String
+tagWith Nothing s = s
+tagWith (Just t) s = s ++ "_" ++ show (unsafeUnTag t)

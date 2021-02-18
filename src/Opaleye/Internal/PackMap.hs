@@ -98,7 +98,7 @@ extractAttrPE :: (primExpr -> String -> String)
               -> PM [(HPQ.Symbol, primExpr)] HPQ.PrimExpr
 extractAttrPE mkName t pe = do
   i <- new
-  let s = HPQ.Symbol (mkName pe i) t
+  let s = HPQ.Symbol (mkName pe i) (Just t)
   write (s, pe)
   return (HPQ.AttrExpr s)
 

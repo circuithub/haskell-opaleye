@@ -122,8 +122,8 @@ extractAggregateFields
 extractAggregateFields tag (m, pe) = do
   i <- PM.new
 
-  let souter = HPQ.Symbol ("result" ++ i) tag
-      sinner = HPQ.Symbol ("inner" ++ i) tag
+  let souter = HPQ.Symbol ("result" ++ i) (Just tag)
+      sinner = HPQ.Symbol ("inner" ++ i) (Just tag)
 
   PM.write ((souter, (m, sinner)), (sinner, pe))
 

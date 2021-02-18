@@ -120,7 +120,7 @@ sql (pes, pq, t) = SelectFrom $ newSelect { attrs = SelectAttrs (ensureColumns (
                                           , tables = oneTable pqSelect }
   where pqSelect = PQ.foldPrimQuery sqlQueryGenerator pq
         makeAttrs = flip (zipWith makeAttr) [1..]
-        makeAttr pe i = sqlBinding (Symbol ("result" ++ show (i :: Int)) t, pe)
+        makeAttr pe i = sqlBinding (Symbol ("result" ++ show (i :: Int)) (Just t), pe)
 
 unit :: Select
 unit = SelectFrom newSelect { attrs  = SelectAttrs (ensureColumns []) }

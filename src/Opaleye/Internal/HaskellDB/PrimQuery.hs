@@ -15,7 +15,7 @@ type Name = String
 type Scheme     = [Attribute]
 type Assoc      = [(Attribute,PrimExpr)]
 
-data Symbol = Symbol String T.Tag deriving (Read, Show)
+data Symbol = Symbol String (Maybe T.Tag) deriving (Read, Show)
 
 data PrimExpr   = AttrExpr  Symbol
                 | BaseTableAttrExpr Attribute
