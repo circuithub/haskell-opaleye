@@ -2,6 +2,7 @@
 
 module Opaleye.Internal.Sql where
 
+import           Data.Bool (bool)
 import           Prelude hiding (product)
 
 import qualified Opaleye.Internal.PrimQuery as PQ
@@ -115,11 +116,18 @@ sqlQueryGenerator = PQ.PrimQueryFold
 exists :: Symbol -> Select -> Select
 exists binding table = SelectExists (Exists binding table)
 
-sql :: ([HPQ.PrimExpr], PQ.PrimQuery' V.Void, T.Tag) -> Select
-sql (pes, pq, t) = SelectFrom $ newSelect { attrs = SelectAttrs (ensureColumns (makeAttrs pes))
-                                          , tables = oneTable pqSelect }
-  where pqSelect = PQ.foldPrimQuery sqlQueryGenerator pq
-        makeAttrs = flip (zipWith makeAttr) [1..]
+sql :: Bool -> ([HPQ.PrimExpr], PQ.PrimQuery' V.Void, T.Tag) -> Select
+sql rename (pes, pq, t) =
+  SelectFrom $ newSelect
+    { attrs = SelectAttrs (ensureColumns (makeAttrs pes))
+    , tables = oneTable pqSelect
+    }
+  where
+    pqSelect = PQ.foldPrimQuery sqlQueryGenerator pq
+    makeAttrs = bool makeUnrenamed makeRenamed rename
+    makeUnrenamed = map (\e -> (sqlExpr e, Nothing))
+    makeRenamed = flip (zipWith makeAttr) [1..]
+      where
         makeAttr pe i = sqlBinding (Symbol ("result" ++ show (i :: Int)) (Just t), pe)
 
 unit :: Select

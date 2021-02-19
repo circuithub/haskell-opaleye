@@ -202,8 +202,8 @@ ppDeleteReturning (Sql.Returning delete returnExprs) =
 -- * Bits from "Opaleye.Sql".  They don't really belong here but I
 -- * have to put them somewhere.
 
-formatAndShowSQL :: ([HPQ.PrimExpr], PQ.PrimQuery' a, T.Tag) -> Maybe String
-formatAndShowSQL = fmap (show . ppSql . Sql.sql) . traverse2Of3 Op.removeEmpty
+formatAndShowSQL :: Bool -> ([HPQ.PrimExpr], PQ.PrimQuery' a, T.Tag) -> Maybe String
+formatAndShowSQL rename = fmap (show . ppSql . Sql.sql rename) . traverse2Of3 Op.removeEmpty
   where -- Just a lens
         traverse2Of3 :: Functor f => (a -> f b) -> (x, a, y) -> f (x, b, y)
         traverse2Of3 f (x, y, z) = fmap (\y' -> (x, y', z)) (f y)

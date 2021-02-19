@@ -6,6 +6,7 @@ module Opaleye.Sql (
   showSqlUnopt,
   -- * Explicit versions
   showSqlExplicit,
+  showSqlExplicitNoRename,
   showSqlUnoptExplicit,
   -- * Deprecated functions
   showSqlForPostgres,
@@ -55,12 +56,17 @@ showSqlUnopt :: forall fields.
 showSqlUnopt = showSqlUnoptExplicit (D.def :: U.Unpackspec fields fields)
 
 showSqlExplicit :: U.Unpackspec fields b -> S.Select fields -> Maybe String
-showSqlExplicit = Pr.formatAndShowSQL
+showSqlExplicit = Pr.formatAndShowSQL True
                   . (\(x, y, z) -> (x, Op.optimize y, z))
                   .: Q.runQueryArrUnpack
 
+showSqlExplicitNoRename :: U.Unpackspec fields b -> S.Select fields -> Maybe String
+showSqlExplicitNoRename = Pr.formatAndShowSQL False
+                          . (\(x, y, z) -> (x, Op.optimize y, z))
+                          .: Q.runQueryArrUnpack
+
 showSqlUnoptExplicit :: U.Unpackspec fields b -> S.Select fields -> Maybe String
-showSqlUnoptExplicit = Pr.formatAndShowSQL .: Q.runQueryArrUnpack
+showSqlUnoptExplicit = Pr.formatAndShowSQL True .: Q.runQueryArrUnpack
 
 {-# DEPRECATED showSqlForPostgres "Will be removed in version 0.8.  Use 'showSql' instead." #-}
 showSqlForPostgres :: forall columns . D.Default U.Unpackspec columns columns =>
