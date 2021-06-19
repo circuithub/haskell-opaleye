@@ -90,10 +90,9 @@ viaLateral :: SelectArr i a -> i -> Select a
 viaLateral s i = s <<< pure i
 
 bind :: SelectArr i a -> (a -> SelectArr i b) -> SelectArr i b
-bind s f = proc i -> do
-  a <- s -< i
-  b <- lateral (\(a, i) -> viaLateral (f a) i) -< (a, i)
-  returnA -< b
+bind s f = QueryArr (\(i, pq, t) ->
+                       let (a, pq', t') = runQueryArr s (i, pq, t)
+                       in runQueryArr (f a) (i, pq', t'))
 
 arrowApply :: SelectArr (SelectArr i a, i) a
 arrowApply = lateral (\(f, i) -> viaLateral f i)
