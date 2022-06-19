@@ -69,6 +69,7 @@ library
                    Opaleye.ToFields,
                    Opaleye.TypeFamilies,
                    Opaleye.Values,
+                   Opaleye.Window,
                    Opaleye.Internal.Aggregate,
                    Opaleye.Internal.Binary,
                    Opaleye.Internal.Constant,
@@ -101,7 +102,8 @@ library
                    Opaleye.Internal.Tag,
                    Opaleye.Internal.TypeFamilies,
                    Opaleye.Internal.Unpackspec,
-                   Opaleye.Internal.Values
+                   Opaleye.Internal.Values,
+                   Opaleye.Internal.Window,
                    Opaleye.Internal.HaskellDB.PrimQuery,
                    Opaleye.Internal.HaskellDB.Sql,
                    Opaleye.Internal.HaskellDB.Sql.Default,
