@@ -37,7 +37,7 @@ module Opaleye ( module Opaleye.Adaptors
                , module Opaleye.ToFields
                , module Opaleye.Values
                , module Opaleye.Window
-               , module Opaleye.WithRecursive
+               , module Opaleye.With
                ) where
 
 import Opaleye.Adaptors
@@ -63,8 +63,5 @@ import Opaleye.SqlTypes
 import Opaleye.Table
 import Opaleye.ToFields
 import Opaleye.Values
-<<<<<<< HEAD
 import Opaleye.Window
-=======
-import Opaleye.WithRecursive
->>>>>>> 77e1065 (Implement WITH RECURSIVE.)
+import Opaleye.With
